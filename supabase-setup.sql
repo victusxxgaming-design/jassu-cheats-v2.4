@@ -12,6 +12,9 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
+grant select, update on public.profiles to authenticated;
+grant all on public.profiles to service_role;
+
 alter table public.profiles enable row level security;
 
 -- Users can read and update only their own profile.
