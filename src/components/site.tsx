@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { platformLabel, money, type Product, type Platform } from "@/lib/data";
 import { consumeMorph } from "@/lib/morph";
 import { cn } from "@/lib/utils";
+import { AccountCard } from "@/components/account-card";
 
 export const platformIcon = (p: Platform) => ({ pc: Monitor, ios: Apple, other: Boxes })[p];
 
@@ -114,7 +115,7 @@ export function Footer() {
 }
 
 export function Shell({ children }: { children: ReactNode }) {
-  return (<><Header /><main className="min-h-[60vh]"><MorphReveal>{children}</MorphReveal></main><Footer /></>);
+  return (<><Header /><main className="min-h-[60vh]"><MorphReveal>{children}</MorphReveal></main><Footer /><AccountCard /></>);
 }
 
 /** Plays the settle-in animation after a full-page morph transition. */
