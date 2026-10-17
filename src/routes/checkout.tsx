@@ -1,10 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { CreditCard, Wallet, Smartphone, Bitcoin, Loader2, Clock, XCircle, CheckCircle2, Lock } from "lucide-react";
+import { toast } from "sonner";
 import { Shell, Field, inputCls } from "@/components/site";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/lib/cart";
-import { getProduct, money } from "@/lib/data";
+import { money } from "@/lib/data";
+import { createOrder, useProducts, validateCoupon } from "@/lib/db";
+import { useAuth } from "@/lib/auth";
 import { seo } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import { Summary, FEE_RATE } from "@/components/summary";
@@ -28,34 +31,80 @@ const METHODS = [
 type Stage = "form" | "processing" | "pending" | "failed" | "success";
 
 function Checkout() {
-  const { items, subtotal, clear } = useCart();
+  const { items, clear } = useCart();
+  const { user } = useAuth();
+  const { data: products = [] } = useProducts();
+  const cartProducts = items.map((s) => products.find((p) => p.slug === s)).filter((p) => p !== undefined);
+  const subtotal = cartProducts.reduce((s, p) => s + p.price, 0);
   const nav = useNavigate();
   const [method, setMethod] = useState("card");
   const [code, setCode] = useState("");
   const [discount, setDiscount] = useState(0);
+  const [appliedCode, setAppliedCode] = useState<string | null>(null);
   const [codeMsg, setCodeMsg] = useState<string>();
   const [agree, setAgree] = useState(false);
-  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState(user?.email ?? "");
+  const [country, setCountry] = useState("India");
+  const [discord, setDiscord] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [stage, setStage] = useState<Stage>("form");
   const fee = (subtotal - discount) * FEE_RATE;
 
-  const apply = () => {
-    if (code.toUpperCase() === "VANTIX10") { setDiscount(subtotal * 0.1); setCodeMsg("VANTIX10 applied — 10% off"); }
-    else { setDiscount(0); setCodeMsg("That code isn't valid. Try VANTIX10."); }
+  const apply = async () => {
+    if (!code.trim()) return;
+    try {
+      const c = await validateCoupon(code);
+      if (c) {
+        setDiscount(subtotal * (c.percent_off / 100));
+        setAppliedCode(c.code);
+        setCodeMsg(`${c.code} applied — ${c.percent_off}% off`);
+      } else {
+        setDiscount(0);
+        setAppliedCode(null);
+        setCodeMsg("That code isn't valid or has expired.");
+      }
+    } catch {
+      setCodeMsg("Couldn't check that code right now.");
+    }
   };
 
-  const pay = (outcome: "success" | "pending" | "failed") => {
+  const pay = async (outcome: "success" | "pending" | "failed") => {
     const e: Record<string, string> = {};
     if (!/^\S+@\S+\.\S+$/.test(email)) e.email = "Enter a valid email";
     if (!agree) e.agree = "Please accept the terms";
     setErrors(e);
-    if (Object.keys(e).length) return;
+    if (Object.keys(e).length || !user) return;
     setStage("processing");
-    setTimeout(() => {
-      if (outcome === "success") { clear(); nav({ to: "/order/$id", params: { id: "VX-20512" }, search: { state: "success" } }); }
-      else setStage(outcome);
-    }, 1600);
+    try {
+      const orderNumber = await createOrder({
+        userId: user.id,
+        email,
+        fullName: name,
+        country,
+        discord,
+        method,
+        couponCode: appliedCode,
+        items: cartProducts,
+        subtotal,
+        discount,
+        fee,
+        total: Math.max(0, subtotal - discount + fee),
+        outcome,
+      });
+      if (outcome === "success") {
+        clear();
+        nav({ to: "/order/$id", params: { id: orderNumber }, search: { state: "success" } });
+      } else if (outcome === "pending") {
+        clear();
+        nav({ to: "/order/$id", params: { id: orderNumber }, search: { state: "pending" } });
+      } else {
+        setStage("failed");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't place the order");
+      setStage("form");
+    }
   };
 
   if (items.length === 0 && stage === "form") return (
@@ -73,10 +122,10 @@ function Checkout() {
             <section className="surface p-6 space-y-4">
               <h2 className="font-semibold">Your details</h2>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Full name"><input className={inputCls} placeholder="Alex Rivera" /></Field>
+                <Field label="Full name"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="Alex Rivera" /></Field>
                 <Field label="Email (keys are sent here)" error={errors.email}><input aria-invalid={!!errors.email} className={inputCls} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></Field>
-                <Field label="Country"><select className={inputCls}><option>India</option><option>United States</option><option>Brazil</option><option>Indonesia</option></select></Field>
-                <Field label="Discord (optional)"><input className={inputCls} placeholder="username" /></Field>
+                <Field label="Country"><select className={inputCls} value={country} onChange={(e) => setCountry(e.target.value)}><option>India</option><option>United States</option><option>Brazil</option><option>Indonesia</option></select></Field>
+                <Field label="Discord (optional)"><input className={inputCls} value={discord} onChange={(e) => setDiscord(e.target.value)} placeholder="username" /></Field>
               </div>
             </section>
             <section className="surface p-6 space-y-4">
@@ -98,7 +147,7 @@ function Checkout() {
             </section>
           </div>
           <Summary subtotal={subtotal} fee={fee} discount={discount}>
-            <ul className="text-sm space-y-1 border-t pt-3">{items.map((s) => <li key={s} className="flex justify-between text-muted-foreground"><span className="truncate">{getProduct(s)!.name}</span><span>{money(getProduct(s)!.price)}</span></li>)}</ul>
+            <ul className="text-sm space-y-1 border-t pt-3">{cartProducts.map((p) => <li key={p.slug} className="flex justify-between text-muted-foreground"><span className="truncate">{p.name}</span><span>{money(p.price)}</span></li>)}</ul>
             <label className="flex items-start gap-2 text-xs text-muted-foreground">
               <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5 accent-primary" />
               <span>I agree to the <Link to="/terms" className="text-primary-glow hover:underline">Terms</Link> and <Link to="/refund" className="text-primary-glow hover:underline">Refund Policy</Link>.</span>
@@ -132,7 +181,7 @@ function StateScreen({ stage, onRetry }: { stage: Stage; onRetry: () => void }) 
         <h1 className="mt-5 text-2xl font-semibold">{t}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{d}</p>
         {stage === "failed" && <Button variant="hero" className="mt-8" onClick={onRetry}>Try again</Button>}
-        {stage === "pending" && <div className="mt-8 flex justify-center gap-2"><Button variant="outline" asChild><Link to="/account">Go to dashboard</Link></Button><Button variant="hero" asChild><Link to="/order/$id" params={{ id: "VX-20212" }} search={{ state: "pending" }}>View order</Link></Button></div>}
+        {stage === "pending" && <div className="mt-8 flex justify-center gap-2"><Button variant="outline" asChild><Link to="/account">Go to dashboard</Link></Button></div>}
       </div>
     </div>
   );
