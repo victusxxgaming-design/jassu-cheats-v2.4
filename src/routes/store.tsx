@@ -4,7 +4,8 @@ import { Search, SearchX } from "lucide-react";
 import { Shell, PageHero, ProductCard, inputCls } from "@/components/site";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PRODUCTS, PLATFORMS, type Platform } from "@/lib/data";
+import { PLATFORMS, type Platform } from "@/lib/data";
+import { useProducts } from "@/lib/db";
 import { seo } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
@@ -25,20 +26,19 @@ function Store() {
   const [query, setQuery] = useState(q ?? "");
   const [sort, setSort] = useState("popular");
   const [inStock, setInStock] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [shown, setShown] = useState(6);
+  const { data: products = [], isLoading } = useProducts();
 
-  useEffect(() => { setLoading(true); const t = setTimeout(() => setLoading(false), 450); return () => clearTimeout(t); }, [platform, q]);
   useEffect(() => setQuery(q ?? ""), [q]);
 
   const list = useMemo(() => {
-    let l = PRODUCTS.filter((p) => (!platform || p.platform === platform) && (!inStock || p.stock !== "out"));
+    let l = products.filter((p) => p.published && (!platform || p.platform === platform) && (!inStock || p.stock !== "out"));
     if (query) l = l.filter((p) => (p.name + p.tagline).toLowerCase().includes(query.toLowerCase()));
     if (sort === "low") l = [...l].sort((a, b) => a.price - b.price);
     if (sort === "high") l = [...l].sort((a, b) => b.price - a.price);
     if (sort === "popular") l = [...l].sort((a, b) => b.sales - a.sales);
     return l;
-  }, [platform, query, sort, inStock]);
+  }, [products, platform, query, sort, inStock]);
 
   const title = platform ? `${PLATFORMS.find((p) => p.id === platform)!.label} addons` : "All addons";
   return (
@@ -62,16 +62,16 @@ function Store() {
           </label>
         </div>
 
-        {loading ? (
+        {isLoading ? (
           <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="surface overflow-hidden"><Skeleton className="aspect-[4/3] rounded-none" /><div className="p-4 space-y-3"><Skeleton className="h-4 w-24" /><Skeleton className="h-5 w-2/3" /><Skeleton className="h-4 w-1/2" /></div></div>
           ))}</div>
         ) : list.length === 0 ? (
           <div className="surface grid place-items-center py-20 text-center">
             <SearchX className="h-10 w-10 text-muted-foreground" />
-            <h3 className="mt-4 text-lg font-semibold">No addons match "{query}"</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Try a different search or clear filters.</p>
-            <Button variant="outline" className="mt-6" onClick={() => { setQuery(""); setInStock(false); nav({ search: {} }); }}>Clear filters</Button>
+            <h3 className="mt-4 text-lg font-semibold">{query ? `No addons match "${query}"` : "No products yet"}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{query ? "Try a different search or clear filters." : "Products you add in the admin panel will appear here."}</p>
+            {query && <Button variant="outline" className="mt-6" onClick={() => { setQuery(""); setInStock(false); nav({ search: {} }); }}>Clear filters</Button>}
           </div>
         ) : (
           <>

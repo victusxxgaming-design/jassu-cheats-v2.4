@@ -1,17 +1,23 @@
 import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { Check, ShoppingBag, ShieldCheck, Zap, MessageCircle, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Shell, ProductArt, ProductCard, Pill, Status, platformIcon } from "@/components/site";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { getProduct, PRODUCTS, platformLabel, money, FAQS } from "@/lib/data";
+import { platformLabel, money, FAQS } from "@/lib/data";
+import { productQuery, productsQuery } from "@/lib/db";
 import { useCart } from "@/lib/cart";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/product/$slug")({
-  loader: ({ params }) => { const p = getProduct(params.slug); if (!p) throw notFound(); return { p }; },
+  loader: async ({ params, context }) => {
+    const p = await context.queryClient.ensureQueryData(productQuery(params.slug));
+    if (!p) throw notFound();
+    return { p };
+  },
   head: ({ loaderData }) => {
     const t = loaderData ? `${loaderData.p.name} — Vantix` : "Product — Vantix";
     const d = loaderData ? loaderData.p.tagline : "Product details";
@@ -22,12 +28,13 @@ export const Route = createFileRoute("/product/$slug")({
 
 function ProductPage() {
   const { p } = Route.useLoaderData();
+  const { data: all = [] } = useSuspenseQuery(productsQuery);
   const { add, items } = useCart();
   const nav = useNavigate();
   const [img, setImg] = useState(0);
   const Icon = platformIcon(p.platform);
   const inCart = items.includes(p.slug);
-  const related = PRODUCTS.filter((x) => x.slug !== p.slug && (x.platform === p.platform || x.hue > 250)).slice(0, 4);
+  const related = all.filter((x) => x.slug !== p.slug && x.platform === p.platform).slice(0, 4);
   const hues = [0, 40, -40, 80];
 
   return (
@@ -81,7 +88,7 @@ function ProductPage() {
             {["overview", "requirements", "install", "release"].map((t) => <TabsTrigger key={t} value={t} className="capitalize px-4">{t === "release" ? "Release notes" : t === "install" ? "Installation" : t}</TabsTrigger>)}
           </TabsList>
           <TabsContent value="overview" className="surface p-8 mt-4">
-            <p className="text-muted-foreground max-w-2xl">{p.name} is built for players who want a polished, reliable setup. Every release is tested on current devices and only the latest stable build is distributed.</p>
+            <p className="text-muted-foreground max-w-2xl">{p.description || `${p.name} is built for players who want a polished, reliable setup. Every release is tested on current devices and only the latest stable build is distributed.`}</p>
             <ul className="mt-6 grid gap-3 sm:grid-cols-2">{p.features.map((f) => <li key={f} className="flex gap-2 text-sm"><Check className="h-4 w-4 text-success" />{f}</li>)}</ul>
           </TabsContent>
           <TabsContent value="requirements" className="surface p-8 mt-4 grid gap-4 sm:grid-cols-3 text-sm">
@@ -103,10 +110,12 @@ function ProductPage() {
           <Accordion type="single" collapsible className="surface px-6">{FAQS.slice(0, 3).map((f, i) => <AccordionItem key={i} value={`${i}`}><AccordionTrigger>{f.q}</AccordionTrigger><AccordionContent className="text-muted-foreground">{f.a}</AccordionContent></AccordionItem>)}</Accordion>
         </section>
 
-        <section className="mt-20">
-          <h2 className="text-2xl font-semibold mb-6">You may also like</h2>
-          <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">{related.map((r) => <ProductCard key={r.slug} p={r} />)}</div>
-        </section>
+        {related.length > 0 && (
+          <section className="mt-20">
+            <h2 className="text-2xl font-semibold mb-6">You may also like</h2>
+            <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">{related.map((r) => <ProductCard key={r.slug} p={r} />)}</div>
+          </section>
+        )}
       </div>
     </Shell>
   );
