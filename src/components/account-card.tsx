@@ -55,7 +55,7 @@ export function AccountCard() {
           <button onClick={() => go("/cart")} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface" role="menuitem">
             <ShoppingBag className="h-4 w-4 text-muted-foreground" /> Cart
           </button>
-          <button onClick={() => go("/account", { tab: "orders" })} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface" role="menuitem">
+          <button onClick={() => go("/account")} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface" role="menuitem">
             <Wallet className="h-4 w-4 text-muted-foreground" /> My orders & keys
           </button>
           <div className="my-1 border-t" />
