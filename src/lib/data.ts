@@ -1,3 +1,5 @@
+// Shared types and display helpers. Live data comes from the database via @/lib/db.
+
 export type Platform = "pc" | "ios" | "other";
 
 export const PLATFORMS: { id: Platform; label: string; blurb: string }[] = [
@@ -22,9 +24,6 @@ export type Product = {
   notes: string[];
 };
 
-export const PRODUCTS: Product[] = [];
-
-export const getProduct = (slug: string) => PRODUCTS.find((p) => p.slug === slug);
 export const platformLabel = (p: Platform) => PLATFORMS.find((x) => x.id === p)!.label;
 export const money = (n: number) => `$${n.toFixed(2)}`;
 
@@ -37,17 +36,3 @@ export const FAQS = [
 ];
 
 export type Order = { id: string; date: string; items: string[]; total: number; payment: "paid" | "pending" | "failed"; key: "active" | "pending" | "expired" | "unavailable" };
-export const ORDERS: Order[] = [];
-
-export const fakeKey = (seed: string) => {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let h = 0;
-  for (const c of seed) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  const parts: string[] = [];
-  for (let i = 0; i < 4; i++) {
-    let s = "";
-    for (let j = 0; j < 5; j++) { h = (h * 1103515245 + 12345) >>> 0; s += chars[h % chars.length]; }
-    parts.push(s);
-  }
-  return "DEMO-" + parts.join("-");
-};
