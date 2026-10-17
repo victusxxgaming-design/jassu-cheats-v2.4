@@ -2,7 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Sparkles, Monitor, Apple, Boxes } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Shell, DiscordCTA, Pill, Reveal } from "@/components/site";
-import { PRODUCTS, type Platform } from "@/lib/data";
+import { type Platform } from "@/lib/data";
+import { useProducts } from "@/lib/db";
 import { morphToPage } from "@/lib/morph";
 import { seo } from "@/lib/seo";
 import hero from "@/assets/hero.jpg";
@@ -20,6 +21,7 @@ const LOOKING: { id: Platform; title: string; blurb: string; icon: typeof Monito
 
 function Index() {
   const nav = useNavigate();
+  const { data: products = [] } = useProducts();
   return (
     <Shell>
       <section className="relative overflow-hidden border-b">
@@ -53,7 +55,7 @@ function Index() {
         <div className="mt-10 grid gap-5 md:grid-cols-3">
           {LOOKING.map((o, i) => {
             const Icon = o.icon;
-            const count = PRODUCTS.filter((p) => p.platform === o.id).length;
+            const count = products.filter((p) => p.platform === o.id).length;
             return (
               <Reveal key={o.id} delay={i * 110} className="h-full">
                 <Link to="/store" search={{ platform: o.id }}

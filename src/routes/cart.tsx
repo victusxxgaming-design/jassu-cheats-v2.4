@@ -3,7 +3,8 @@ import { Trash2, ShoppingBag, ArrowRight } from "lucide-react";
 import { Shell, ProductArt, Pill } from "@/components/site";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/lib/cart";
-import { getProduct, money, platformLabel } from "@/lib/data";
+import { money, platformLabel } from "@/lib/data";
+import { useProducts } from "@/lib/db";
 import { seo } from "@/lib/seo";
 import { Summary, FEE_RATE } from "@/components/summary";
 
@@ -14,7 +15,10 @@ export const Route = createFileRoute("/cart")({
 
 
 function Cart() {
-  const { items, remove, subtotal } = useCart();
+  const { items, remove } = useCart();
+  const { data: products = [] } = useProducts();
+  const cartProducts = items.map((s) => products.find((p) => p.slug === s)).filter((p) => p !== undefined);
+  const subtotal = cartProducts.reduce((s, p) => s + p.price, 0);
   const fee = subtotal * FEE_RATE;
   return (
     <Shell>
@@ -30,17 +34,17 @@ function Cart() {
         ) : (
           <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_380px]">
             <ul className="surface divide-y">
-              {items.map((s) => { const p = getProduct(s)!; return (
-                <li key={s} className="flex items-center gap-4 p-5">
+              {cartProducts.map((p) => (
+                <li key={p.slug} className="flex items-center gap-4 p-5">
                   <ProductArt p={p} className="h-20 w-24 shrink-0 rounded-lg" />
                   <div className="min-w-0 flex-1">
-                    <Link to="/product/$slug" params={{ slug: s }} className="font-medium hover:underline truncate block">{p.name}</Link>
+                    <Link to="/product/$slug" params={{ slug: p.slug }} className="font-medium hover:underline truncate block">{p.name}</Link>
                     <div className="mt-1 flex gap-2"><Pill>{platformLabel(p.platform)}</Pill><Pill tone="primary">v{p.version}</Pill></div>
                   </div>
                   <span className="font-display font-semibold">{money(p.price)}</span>
-                  <Button variant="ghost" size="icon" aria-label="Remove" onClick={() => remove(s)}><Trash2 /></Button>
+                  <Button variant="ghost" size="icon" aria-label="Remove" onClick={() => remove(p.slug)}><Trash2 /></Button>
                 </li>
-              ); })}
+              ))}
             </ul>
             <Summary subtotal={subtotal} fee={fee}>
               <Button variant="hero" size="lg" className="w-full" asChild><Link to="/checkout">Checkout <ArrowRight /></Link></Button>
@@ -51,4 +55,3 @@ function Cart() {
     </Shell>
   );
 }
-
